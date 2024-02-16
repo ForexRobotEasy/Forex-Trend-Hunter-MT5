@@ -1,0 +1,104 @@
+mql5
+//+------------------------------------------------------------------+
+//|                                         Forex Trend Hunter MT5   |
+//|                                            forexroboteasy.com    |
+//|                                                Forex Robot Easy Team|
+//+------------------------------------------------------------------+
+
+// Include necessary libraries
+#include <Trade\Trade.mqh>
+#include <Arrays\ArrayObj.mqh>
+#include <Series\SeriesObj.mqh>
+#include <Math\Math.mqh>
+
+// Define constants
+#define TAKE_PROFIT 100
+#define STOP_LOSS 50
+#define LOT_SIZE 0.01
+#define MAX_TRADES 10
+
+// Define global variables
+CTrade trade;
+CArrayObj positions;
+CSeriesObj MA;
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//| Expert initialization function                                   |
+//|                                                                  |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   // Set up account and money management system
+   trade.SetExpertMagicNumber(GetTickCount());
+   trade.SetExpertTakeProfit(TAKE_PROFIT);
+   trade.SetExpertStopLoss(STOP_LOSS);
+   trade.SetExpertLotSize(LOT_SIZE);
+
+   // Retrieve moving average series
+   MA = iMA(_Symbol, PERIOD_M5, 14, 0, MODE_SMA, PRICE_CLOSE);
+
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//| Expert start function                                            |
+//|                                                                  |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   // Check if maximum number of trades has been reached
+   if(positions.Total() < MAX_TRADES)
+   {
+      // Check if a buy signal is generated
+      if(MA[0] > MA[1])
+      {
+         // Open a buy position
+         trade.Buy(LOT_SIZE);
+         positions.Add(trade.PositionGetInteger(POSITION_IDENTIFIER));
+      }
+
+      // Check if a sell signal is generated
+      if(MA[0] < MA[1])
+      {
+         // Open a sell position
+         trade.Sell(LOT_SIZE);
+         positions.Add(trade.PositionGetInteger(POSITION_IDENTIFIER));
+      }
+   }
+
+   // Check for stop loss or take profit levels
+   for(int i = 0; i < positions.Total(); i++)
+   {
+      long position_ticket = (long)positions[i];
+      if(trade.PositionSelectByTicket(position_ticket))
+      {
+         double position_profit = trade.PositionGetDouble(POSITION_PROFIT);
+         if(position_profit >= TAKE_PROFIT || position_profit <= -STOP_LOSS)
+         {
+            // Close the position
+            trade.PositionClose(position_ticket);
+            positions.Delete(i);
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//| Expert deinitialization function                                 |
+//|                                                                  |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   // Close any remaining positions
+   for(int i = 0; i < positions.Total(); i++)
+   {
+      long position_ticket = (long)positions[i];
+      if(trade.PositionSelectByTicket(position_ticket))
+      {
+         trade.PositionClose(position_ticket);
+      }
+   }
+}
